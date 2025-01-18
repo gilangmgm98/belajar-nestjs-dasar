@@ -1,10 +1,36 @@
-import { Controller, Get, Header, HostParam, HttpCode, HttpRedirectResponse, Ip, Param, Post, Query, Redirect, Req, Res } from '@nestjs/common';
+import { Controller, Get, Header, HostParam, HttpCode, HttpRedirectResponse, Inject, Ip, Param, Post, Query, Redirect, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { UserService } from './user.service';
+import { Connection } from '../connection/connection';
+import { MailService } from '../mail/mail.service';
+import { UserRepository } from '../user-repository/user-repository';
+import { MemberService } from '../member/member.service';
 
 @Controller('/api/users')
 export class UserController {
-    constructor(private service: UserService) { }
+    constructor(
+        private service: UserService,
+        private connection: Connection,
+        private mail: MailService,
+        @Inject('EmailService') private emailService: MailService,
+        private userRepository: UserRepository,
+        private memberService: MemberService,
+    ) { }
+
+    @Get('/connection')
+    async getConnection(): Promise<string> {
+        this.userRepository.save()
+        this.mail.send('Saheim')
+        this.emailService.send('Syx')
+        return await this.connection.getName()
+    }
+
+    @Get('/connection/member')
+    async getConnectionMember(): Promise<string> {
+        console.info(this.memberService.getConnectionName())
+        this.memberService.sendEmail('bartos')
+        return await this.connection.getName()
+    }
     
     @Get('/helloService')
     sayHelloService(
