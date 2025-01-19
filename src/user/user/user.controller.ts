@@ -1,10 +1,19 @@
-import { Controller, Get, Header, HostParam, HttpCode, HttpRedirectResponse, Inject, Ip, Param, Post, Query, Redirect, Req, Res } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { Body, Controller, Get, Header, HostParam, HttpCode, HttpException, HttpRedirectResponse, Inject, Ip, Param, ParseIntPipe, Post, Query, Redirect, Req, Res, UseFilters, UseGuards, UseInterceptors, UsePipes } from '@nestjs/common';
+import { request, Request, Response } from 'express';
 import { UserService } from './user.service';
 import { Connection } from '../connection/connection';
 import { MailService } from '../mail/mail.service';
 import { UserRepository } from '../user-repository/user-repository';
 import { MemberService } from '../member/member.service';
+import { User } from '@prisma/client';
+import { ValidationFilter } from 'src/validation/validation.filter';
+import { LoginUserRequest, loginUserRequestValidation } from 'src/model/login.model';
+import { ValidationPipe } from 'src/validation/validation.pipe';
+import { TimeInterceptor } from 'src/time/time.interceptor';
+import { Auth } from 'src/auth/auth.decorator';
+import { first } from 'rxjs';
+import { RoleGuard } from 'src/role/role.guard';
+import { Roles } from 'src/role/role.decorator';
 
 @Controller('/api/users')
 export class UserController {
@@ -17,9 +26,18 @@ export class UserController {
         private memberService: MemberService,
     ) { }
 
+    @Get('/current')
+    // @UseGuards(RoleGuard)
+    @Roles(['admin','supervisor','manager'])
+    current(@Auth() user: User) : Record <string, any>{
+        return {
+            data : `Hello User ${user.firstName} ${user.lastName}`
+        }
+    }
+
     @Get('/connection')
     async getConnection(): Promise<string> {
-        this.userRepository.save()
+        // this.userRepository.save()
         this.mail.send('Saheim')
         this.emailService.send('Syx')
         return await this.connection.getName()
@@ -31,7 +49,7 @@ export class UserController {
         this.memberService.sendEmail('bartos')
         return await this.connection.getName()
     }
-    
+
     @Get('/helloService')
     sayHelloService(
         @Query('first_name') first_name: string,
@@ -153,6 +171,32 @@ export class UserController {
     post(): string {
         return 'Post User';
     }
+    @Post('/create')
+    async create(@Body() userData: { firstName: string; lastName?: string }): Promise<User> {
+        // async create(@Body() userData: { firstName: string; lastName?: string }) {
+        if (!userData.firstName) {
+            throw new HttpException(
+                {
+                    status: 400,
+                    error: 'First Name is required'
+                },
+                400,
+            )
+        }
+        return this.userRepository.save(
+            userData.firstName,
+            userData.lastName,
+        )
+    }
+
+    @Get('/sayHello')
+    // dicomment mengunakan global filter pada main file
+    // @UseFilters(ValidationFilter)
+    sayHelloUserService(
+        @Query('name') name: string,
+    ): string {
+        return this.service.sayHello(name)
+    }
 
     // tidak di rekomendasikan untuk langssung menggunakan express request dan lebih baik gunakan decorator
     // @Get('/:id')
@@ -161,12 +205,31 @@ export class UserController {
     // }
 
     @Get('/:id')
-    getUserById(@Param('id') id: number): string {
+    getUserById(@Param('id', ParseIntPipe) id: number): string {
         return `Param ID: ${id}`;
     }
 
     @Get('/get')
     async get(): Promise<string> {
         return 'Hello NestJS User';
+    }
+
+    @UsePipes(new ValidationPipe(loginUserRequestValidation))
+    @Post('/login')
+    @Header('Content-Type', 'application/json')
+    @UseInterceptors(TimeInterceptor)
+    login(
+        @Query('name') name: string,
+        @Body() request: LoginUserRequest
+    ) {
+        if (name) {
+            return {
+                data: `Hello ${request.username} with params ${name}`
+            }
+        } else {
+            return {
+                data: `Hello ${request.username}`
+            }
+        }
     }
 }
